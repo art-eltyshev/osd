@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdn.jsdelivr.net/npm/openseadragon@2.2/build/openseadragon/openseadragon.min.js"></script>
+    <title>OSD test</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+        }
+
+        #osd {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="osd"></div>
+    <script type="text/javascript">
+      window.viewer = OpenSeadragon({
+        id: 'osd',
+        debugMode: window.location.search === '?debug',
+        prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@2.2/build/openseadragon/images/'
+      });
+      window.viewer.open('/heavy.dzi');
+    </script>
+</body>
+</html>
