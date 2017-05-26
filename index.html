@@ -26,12 +26,12 @@
 <body>
     <div id="osd"></div>
     <script type="text/javascript">
-      window.viewer = OpenSeadragon({
+      OpenSeadragon({
         id: 'osd',
         debugMode: window.location.search === '?debug',
-        prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@2.2/build/openseadragon/images/'
+        prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@2.2/build/openseadragon/images/',
+        tileSources: 'heavy.dzi'
       });
-      window.viewer.open('/heavy.dzi');
     </script>
 </body>
 </html>
