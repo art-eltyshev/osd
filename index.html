@@ -3,34 +3,189 @@
 <head>
     <meta charset="UTF-8">
     <script src="https://cdn.jsdelivr.net/npm/openseadragon@2.2/build/openseadragon/openseadragon.min.js"></script>
+    <script src="http://openseadragon.github.io/svg-overlay/openseadragon-svg-overlay.js"></script>
+    <script src="https://d3js.org/d3.v4.min.js"></script>
     <title>OSD test</title>
 
     <style>
         * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
         }
 
         body, html {
-            width: 100%;
             height: 100%;
+            width: 100%;
         }
 
         #osd {
-            width: 100%;
             height: 100%;
+            width: 100%;
+        }
+
+        #draw-line {
+            cursor: pointer;
+            position: fixed;
+            top: 0;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 2.7em;
+            background: lightgray;
+            text-align: center;
+            padding-top: 2px;
+            z-index: 1;
+        }
+
+        #draw-line.active {
+            background: red;
         }
     </style>
 </head>
 <body>
+    <div id="draw-line">✍</div>
     <div id="osd"></div>
     <script type="text/javascript">
-      OpenSeadragon({
+      var debug = false;
+      var lines = null;
+      var drawLineButton = document.getElementById('draw-line');
+      var drawingIsActive = false;
+      var stroke = 0.002;
+      var prevZoom = 1;
+      var startPoint;
+      var endPoint;
+
+      var queryParts = location.search.substr(1).split('&');
+      for (var i = 0; i < queryParts.length; i++) {
+        var param = queryParts[i].split('=');
+
+        switch (param[0]) {
+          case 'debug':
+            debug = true;
+            break;
+          case 'lines':
+            lines = [];
+            var linesParams = param[1].split(';');
+            for (var l = 0; l < linesParams.length; l++) {
+              lines.push(linesParams[l].split(',').map(Number));
+            }
+        }
+      }
+
+      if (!lines) {
+        lines.push([0, 0, 4000, 4000]);
+        lines.push([4000, 4000, 0, 2000]);
+        lines.push([0, 2000, 6000, 0]);
+      }
+
+      var viewer = OpenSeadragon({
         id: 'osd',
-        debugMode: window.location.search === '?debug',
+        debugMode: debug,
         prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@2.2/build/openseadragon/images/',
         tileSources: 'heavy.dzi'
+      });
+
+      var svgOverlay = viewer.svgOverlay();
+
+      function convertImageCoordinates(x ,y) {
+        return viewer.viewport.imageToViewportCoordinates(x, y);
+      }
+
+      function drawLine(x1, y1, x2, y2, id) {
+        var p1 = convertImageCoordinates(x1, y1);
+        var p2 = convertImageCoordinates(x2, y2);
+
+        var line = d3.select(svgOverlay.node())
+          .append('line')
+          .attr('x1', p1.x)
+          .attr('y1', p1.y)
+          .attr('x2', p2.x)
+          .attr('y2', p2.y)
+          .attr('stroke', 'red')
+          .attr('stroke-width', stroke / viewer.viewport.getZoom());
+
+        if (id) {
+          line.attr('id', id);
+        }
+      }
+
+      viewer.addHandler('open', function() {
+        for (var i = 0; i < lines.length; i++) {
+          drawLine(lines[i][0], lines[i][1], lines[i][2], lines[i][3]);
+        }
+      });
+
+      viewer.addHandler('zoom', function (e) {
+        if (e.zoom !== prevZoom) {
+          d3.select(svgOverlay.node())
+            .selectAll('line')
+            .attr('stroke-width', stroke / e.zoom);
+          prevZoom = e.zoom;
+        }
+      });
+
+      function onMouseMove(e) {
+        var p = viewer.viewport.pointFromPixel(new OpenSeadragon.Point(e.offsetX, e.offsetY));
+        var ip = viewer.viewport.viewportToImageCoordinates(p.x, p.y);
+
+        var newEndPoint = {
+          v: p,
+          i: ip
+        };
+
+        if (!endPoint) {
+          drawLine(startPoint.i.x, startPoint.i.y, newEndPoint.i.x, newEndPoint.i.y, 'drawingLine');
+        } else {
+          d3.select(svgOverlay.node())
+            .select('#drawingLine')
+            .attr('x2', p.x)
+            .attr('y2', p.y);
+        }
+
+        endPoint = newEndPoint;
+      }
+
+      drawLineButton.addEventListener('click', function () {
+        drawLineButton.classList.toggle('active');
+        drawingIsActive = !drawingIsActive;
+
+        if (drawingIsActive) {
+          viewer.gestureSettingsMouse.clickToZoom = false;
+        }
+      });
+
+      viewer.addHandler('canvas-click', function (e) {
+        if (!drawingIsActive) {
+          return;
+        }
+
+        var viewportPoint = viewer.viewport.pointFromPixel(e.position);
+        var imagePoint = viewer.viewport.viewportToImageCoordinates(viewportPoint);
+
+        if (!startPoint) {
+          startPoint = {
+            v: viewportPoint,
+            i: imagePoint
+          };
+
+          svgOverlay._svg.addEventListener('mousemove', onMouseMove);
+        } else {
+          svgOverlay._svg.removeEventListener('mousemove', onMouseMove);
+          d3.select(svgOverlay.node())
+            .select('#drawingLine')
+            .remove();
+          drawLine(startPoint.i.x, startPoint.i.y, endPoint.i.x, endPoint.i.y);
+          startPoint = null;
+          endPoint = null;
+          drawLineButton.classList.remove('active');
+          drawingIsActive = false;
+          viewer.gestureSettingsMouse.clickToZoom = true;
+        }
+      });
+
+      window.addEventListener('resize', function() {
+        svgOverlay.resize();
       });
     </script>
 </body>
