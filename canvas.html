@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<script src="//cdn.jsdelivr.net/npm/openseadragon@2.2/build/openseadragon/openseadragon.min.js"></script>
+	<script src="http://msalsbery.github.io/builds/openseadragonimaging/openseadragon-viewerinputhook.min.js"></script>
+	<script src="paper.js"></script>
+	<title>OSD test</title>
+
+	<style>
+		* {
+			box-sizing: border-box;
+			margin: 0;
+			padding: 0;
+		}
+
+		body, html {
+			height: 100%;
+			width: 100%;
+		}
+
+		#osd {
+			height: 100%;
+			width: 100%;
+		}
+
+		#draw-button {
+			cursor: pointer;
+			position: fixed;
+			top: 0;
+			left: 50%;
+			width: 50px;
+			height: 50px;
+			font-size: 2.7em;
+			background: lightgray;
+			text-align: center;
+			padding-top: 2px;
+			z-index: 1;
+		}
+
+		#draw-button.active {
+			background: red;
+		}
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+	</style>
+</head>
+<body>
+<div id="draw-button">✍</div>
+<div id="osd"></div>
+<script type="text/javascript">
+  var debug = false;
+  var simplify = false;
+  var drawLineButton = document.getElementById('draw-button');
+  var drawingIsActive = false;
+  var magicV = 1000;
+  var region;
+  var config = {
+    strokeColor: 'red',
+    strokeWidth: 2
+  };
+
+  var queryParts = location.search.substr(1).split('&');
+  for (var i = 0; i < queryParts.length; i++) {
+    var param = queryParts[i].split('=');
+
+    switch (param[0]) {
+      case 'debug':
+        debug = true;
+        break;
+      case 'simplify':
+        simplify = true;
+        break;
+    }
+  }
+
+  drawLineButton.addEventListener('click', function () {
+    drawLineButton.classList.toggle('active');
+    drawingIsActive = !drawingIsActive;
+  });
+
+  var viewer = OpenSeadragon({
+    id: 'osd',
+    debugMode: debug,
+    prefixUrl: '//cdn.jsdelivr.net/npm/openseadragon@2.2/build/openseadragon/images/',
+    tileSources: 'heavy.dzi'
+  });
+
+  viewer.addHandler('open', function () {
+    // create canvas
+    var canvas = document.createElement('canvas');
+    canvas.className = 'overlay';
+    document.body.appendChild(canvas);
+
+    // create project
+    paper.setup(canvas);
+
+    // resize the view to the correct size
+    paper.view.viewSize = [document.body.clientWidth, document.body.clientHeight];
+    paper.settings.handleSize = 10;
+    paper.view.draw();
+
+    /* RT: commenting this line out solves the image size issues */
+    // set size of the current overlay to match the size of the current image
+    magicV = viewer.world.getItemAt(0).getContentSize().x / 100;
+
+    transform();
+  });
+
+  viewer.addHandler('animation', function () {
+    transform();
+  });
+
+  viewer.addViewerInputHook({
+    hooks: [
+      {tracker: 'viewer', handler: 'clickHandler', hookHandler: clickHandler},
+      {tracker: 'viewer', handler: 'pressHandler', hookHandler: pressHandler},
+      {tracker: 'viewer', handler: 'dragHandler', hookHandler: dragHandler},
+      {tracker: 'viewer', handler: 'dragEndHandler', hookHandler: dragEndHandler}
+    ]
+  });
+
+  function transform() {
+    var z = viewer.viewport.viewportToImageZoom(viewer.viewport.getZoom(true));
+    var sw = viewer.source.width;
+    var bounds = viewer.viewport.getBounds(true);
+    var x = magicV * bounds.x;
+    var y = magicV * bounds.y;
+    var w = magicV * bounds.width;
+    var h = magicV * bounds.height;
+    paper.view.setCenter(x + w / 2, y + h / 2);
+    paper.view.zoom=(sw * z) / magicV;
+  }
+
+  function clickHandler(event) {
+    if (drawingIsActive) {
+      event.stopHandlers = true;
+      if (region.path.length <= 3) {
+        region.path.remove();
+      }
+    }
+  }
+
+  function pressHandler(event) {
+    if (drawingIsActive) {
+      event.stopHandlers = true;
+
+      var point = paper.view.viewToProject(new paper.Point(event.originalEvent.layerX, event.originalEvent.layerY));
+
+      var path = new paper.Path({segments: [point]});
+
+      path.strokeWidth = config.strokeWidth;
+      path.strokeColor = config.strokeColor;
+      path.strokeScaling = false;
+      path.selected = false;
+
+      region = {path: path};
+
+      paper.view.draw();
+    }
+  }
+
+  function dragHandler(event) {
+    if (drawingIsActive) {
+      event.stopHandlers = true;
+
+      var point = paper.view.viewToProject(new paper.Point(event.originalEvent.layerX, event.originalEvent.layerY));
+
+      region.path.add(point);
+      paper.view.draw();
+    }
+  }
+
+  function dragEndHandler(event) {
+    if (drawingIsActive) {
+      event.stopHandlers = true;
+      //    region.path.closed = true;
+//    region.path.fullySelected = true;
+
+      if (simplify) {
+        var orig_segments = region.path.segments.length;
+        region.path.simplify();
+        var final_segments = region.path.segments.length;
+        console.log('simplify', {
+          orig_segments: orig_segments,
+          final_segments: final_segments
+        });
+        paper.view.draw();
+      }
+    }
+  }
+</script>
+</body>
+</html>
