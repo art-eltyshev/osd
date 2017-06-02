@@ -142,7 +142,11 @@
       }
     } else {
       var point = paper.view.viewToProject(new paper.Point(event.originalEvent.layerX, event.originalEvent.layerY));
-      var hitResult = paper.project.hitTest(point);
+      var hitResult = paper.project.hitTest(point, {
+        tolerance: 1,
+        stroke: true,
+        segments: true
+      });
 
       if (hitResult) {
         event.stopHandlers = true;
