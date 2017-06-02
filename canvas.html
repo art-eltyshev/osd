@@ -55,11 +55,11 @@
 <div id="osd"></div>
 <script type="text/javascript">
   var debug = false;
-  var simplify = false;
   var drawLineButton = document.getElementById('draw-button');
   var drawingIsActive = false;
   var magicV = 1000;
   var region;
+  var selectedPath;
   var config = {
     strokeColor: 'red',
     strokeWidth: 2
@@ -72,9 +72,6 @@
     switch (param[0]) {
       case 'debug':
         debug = true;
-        break;
-      case 'simplify':
-        simplify = true;
         break;
     }
   }
@@ -143,6 +140,23 @@
       if (region.path.length <= 3) {
         region.path.remove();
       }
+    } else {
+      var point = paper.view.viewToProject(new paper.Point(event.originalEvent.layerX, event.originalEvent.layerY));
+      var hitResult = paper.project.hitTest(point);
+
+      if (hitResult) {
+        event.stopHandlers = true;
+        selectedPath = hitResult.item;
+        selectedPath.strokeColor = 'green';
+        selectedPath.strokeWidth = 4;
+        paper.view.draw();
+      } else if (selectedPath) {
+        event.stopHandlers = true;
+        selectedPath.strokeColor = 'red';
+        selectedPath.strokeWidth = 2;
+        selectedPath = null;
+        paper.view.draw();
+      }
     }
   }
 
@@ -181,17 +195,6 @@
       event.stopHandlers = true;
       //    region.path.closed = true;
 //    region.path.fullySelected = true;
-
-      if (simplify) {
-        var orig_segments = region.path.segments.length;
-        region.path.simplify();
-        var final_segments = region.path.segments.length;
-        console.log('simplify', {
-          orig_segments: orig_segments,
-          final_segments: final_segments
-        });
-        paper.view.draw();
-      }
     }
   }
 </script>
