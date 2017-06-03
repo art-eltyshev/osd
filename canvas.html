@@ -187,19 +187,39 @@
     if (drawingIsActive) {
       event.stopHandlers = true;
 
-      var point = paper.view.viewToProject(new paper.Point(event.originalEvent.layerX, event.originalEvent.layerY));
+      var point = new paper.Point(event.originalEvent.layerX, event.originalEvent.layerY);
+      var projectPoint = paper.view.viewToProject(point);
 
-      region.path.add(point);
-      paper.view.draw();
+      var imagePoint = convertToImagePoint(point);
+
+      if (imagePoint.x >= 0 && imagePoint.y >= 0) {
+        region.path.add(projectPoint);
+        paper.view.draw();
+      }
     }
   }
 
   function dragEndHandler(event) {
     if (drawingIsActive) {
       event.stopHandlers = true;
-      //    region.path.closed = true;
-//    region.path.fullySelected = true;
+      //region.path.closed = true;
+      //region.path.fullySelected = true;
+
+      var bounds = region.path.getBounds();
+      var imageBounds = {
+        topLeft: convertToImagePoint(paper.view.projectToView(bounds.topLeft)),
+        topRight: convertToImagePoint(paper.view.projectToView(bounds.topRight)),
+        bottomLeft: convertToImagePoint(paper.view.projectToView(bounds.bottomLeft)),
+        bottomRight: convertToImagePoint(paper.view.projectToView(bounds.bottomRight))
+      };
+
+      console.log(imageBounds);
     }
+  }
+
+  function convertToImagePoint(point) {
+    var viewportPoint = viewer.viewport.pointFromPixel(new OpenSeadragon.Point(point.x, point.y));
+    return viewer.viewport.viewportToImageCoordinates(viewportPoint.x, viewportPoint.y);
   }
 </script>
 </body>
