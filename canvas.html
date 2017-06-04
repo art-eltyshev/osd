@@ -54,7 +54,12 @@
 <div id="draw-button">✍</div>
 <div id="osd"></div>
 <script type="text/javascript">
+  var matrix;
+  var invertedMatrix;
+  var paperScope = new paper.PaperScope();
+  var paths = [];
   var debug = false;
+  var canvas;
   var drawLineButton = document.getElementById('draw-button');
   var drawingIsActive = false;
   var magicV = 1000;
@@ -90,23 +95,27 @@
 
   viewer.addHandler('open', function () {
     // create canvas
-    var canvas = document.createElement('canvas');
+    canvas = document.createElement('canvas');
     canvas.className = 'overlay';
     document.body.appendChild(canvas);
 
     // create project
-    paper.setup(canvas);
+    paperScope.setup(canvas);
 
     // resize the view to the correct size
-    paper.view.viewSize = [document.body.clientWidth, document.body.clientHeight];
-    paper.settings.handleSize = 10;
-    paper.view.draw();
+    paperScope.view.viewSize = [document.body.clientWidth, document.body.clientHeight];
+    paperScope.settings.handleSize = 10;
+    paperScope.view.draw();
 
     /* RT: commenting this line out solves the image size issues */
     // set size of the current overlay to match the size of the current image
     magicV = viewer.world.getItemAt(0).getContentSize().x / 100;
 
     transform();
+
+    var _p = convertToImagePoint(paperScope.view.projectToView({x:1, y:1}));
+    matrix = new paper.Matrix(_p.x, 0, 0, _p.y, 0, 0);
+    invertedMatrix = matrix.inverted();
   });
 
   viewer.addHandler('animation', function () {
@@ -130,8 +139,8 @@
     var y = magicV * bounds.y;
     var w = magicV * bounds.width;
     var h = magicV * bounds.height;
-    paper.view.setCenter(x + w / 2, y + h / 2);
-    paper.view.zoom=(sw * z) / magicV;
+    paperScope.view.setCenter(x + w / 2, y + h / 2);
+    paperScope.view.zoom=(sw * z) / magicV;
   }
 
   function clickHandler(event) {
@@ -141,8 +150,8 @@
         region.path.remove();
       }
     } else {
-      var point = paper.view.viewToProject(new paper.Point(event.originalEvent.layerX, event.originalEvent.layerY));
-      var hitResult = paper.project.hitTest(point, {
+      var point = paperScope.view.viewToProject(new paperScope.Point(event.originalEvent.layerX, event.originalEvent.layerY));
+      var hitResult = paperScope.project.hitTest(point, {
         tolerance: 1,
         stroke: true,
         segments: true
@@ -153,13 +162,13 @@
         selectedPath = hitResult.item;
         selectedPath.strokeColor = 'green';
         selectedPath.strokeWidth = 4;
-        paper.view.draw();
+        paperScope.view.draw();
       } else if (selectedPath) {
         event.stopHandlers = true;
         selectedPath.strokeColor = 'red';
         selectedPath.strokeWidth = 2;
         selectedPath = null;
-        paper.view.draw();
+        paperScope.view.draw();
       }
     }
   }
@@ -168,9 +177,9 @@
     if (drawingIsActive) {
       event.stopHandlers = true;
 
-      var point = paper.view.viewToProject(new paper.Point(event.originalEvent.layerX, event.originalEvent.layerY));
+      var point = paperScope.view.viewToProject(new paperScope.Point(event.originalEvent.layerX, event.originalEvent.layerY));
 
-      var path = new paper.Path({segments: [point]});
+      var path = new paperScope.Path({segments: [point]});
 
       path.strokeWidth = config.strokeWidth;
       path.strokeColor = config.strokeColor;
@@ -179,7 +188,7 @@
 
       region = {path: path};
 
-      paper.view.draw();
+      paperScope.view.draw();
     }
   }
 
@@ -187,14 +196,14 @@
     if (drawingIsActive) {
       event.stopHandlers = true;
 
-      var point = new paper.Point(event.originalEvent.layerX, event.originalEvent.layerY);
-      var projectPoint = paper.view.viewToProject(point);
+      var point = new paperScope.Point(event.originalEvent.layerX, event.originalEvent.layerY);
+      var projectPoint = paperScope.view.viewToProject(point);
 
       var imagePoint = convertToImagePoint(point);
 
       if (imagePoint.x >= 0 && imagePoint.y >= 0) {
         region.path.add(projectPoint);
-        paper.view.draw();
+        paperScope.view.draw();
       }
     }
   }
@@ -205,12 +214,13 @@
       //region.path.closed = true;
       //region.path.fullySelected = true;
 
+      paths.push(region.path);
       var bounds = region.path.getBounds();
       var imageBounds = {
-        topLeft: convertToImagePoint(paper.view.projectToView(bounds.topLeft)),
-        topRight: convertToImagePoint(paper.view.projectToView(bounds.topRight)),
-        bottomLeft: convertToImagePoint(paper.view.projectToView(bounds.bottomLeft)),
-        bottomRight: convertToImagePoint(paper.view.projectToView(bounds.bottomRight))
+        topLeft: convertToImagePoint(paperScope.view.projectToView(bounds.topLeft)),
+        topRight: convertToImagePoint(paperScope.view.projectToView(bounds.topRight)),
+        bottomLeft: convertToImagePoint(paperScope.view.projectToView(bounds.bottomLeft)),
+        bottomRight: convertToImagePoint(paperScope.view.projectToView(bounds.bottomRight))
       };
 
       console.log(imageBounds);
@@ -220,6 +230,41 @@
   function convertToImagePoint(point) {
     var viewportPoint = viewer.viewport.pointFromPixel(new OpenSeadragon.Point(point.x, point.y));
     return viewer.viewport.viewportToImageCoordinates(viewportPoint.x, viewportPoint.y);
+  }
+
+  window.addEventListener('resize', function() {
+    canvas.width = document.body.clientWidth;
+    canvas.height = document.body.clientHeight;
+    paperScope.view.viewSize = [document.body.clientWidth, document.body.clientHeight];
+
+    var _p = convertToImagePoint(paperScope.view.projectToView({x:1, y:1}));
+    matrix = new paper.Matrix(_p.x, 0, 0, _p.y, 0, 0);
+    invertedMatrix = matrix.inverted();
+  });
+
+  function save() {
+    var exportArray = [];
+
+    for (var i = 0; i < paths.length; i++) {
+      exportArray.push(
+        paths[i].clone().transform(matrix).toJSON()
+      );
+    }
+
+    return JSON.stringify(exportArray);
+  }
+
+  function load(str) {
+    var pathsData = JSON.parse(str);
+
+    for (var i = 0; i < pathsData.length; i++) {
+      var path = new paperScope.Path();
+      path.importJSON(pathsData[i]);
+      path.transform(invertedMatrix);
+      paths.push(path);
+    }
+
+    paperScope.view.draw();
   }
 </script>
 </body>
