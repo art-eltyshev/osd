@@ -146,9 +146,9 @@
   function clickHandler(event) {
     if (drawingIsActive) {
       event.stopHandlers = true;
-      if (region.path.length <= 3) {
-        region.path.remove();
-      }
+      //if (region.path.length <= 3) {
+      //  region.path.remove();
+      //}
     } else {
       var point = paperScope.view.viewToProject(new paperScope.Point(event.originalEvent.layerX, event.originalEvent.layerY));
       var hitResult = paperScope.project.hitTest(point, {
