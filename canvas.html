@@ -62,6 +62,7 @@
   var canvas;
   var drawLineButton = document.getElementById('draw-button');
   var drawingIsActive = false;
+  var currentLevel;
   var magicV = 1000;
   var region;
   var selectedPath;
@@ -91,6 +92,12 @@
     debugMode: debug,
     prefixUrl: '//cdn.jsdelivr.net/npm/openseadragon@2.2/build/openseadragon/images/',
     tileSources: 'heavy.dzi'
+  });
+
+  viewer.addHandler('update-level', function (data) {
+    if (typeof currentLevel === 'undefined' || currentLevel !== data.level && !data.best) {
+      currentLevel = data.level;
+    }
   });
 
   viewer.addHandler('open', function () {
@@ -223,7 +230,7 @@
         bottomRight: convertToImagePoint(paperScope.view.projectToView(bounds.bottomRight))
       };
 
-      console.log(imageBounds);
+      console.log(imageBounds, {level: currentLevel});
     }
   }
 
